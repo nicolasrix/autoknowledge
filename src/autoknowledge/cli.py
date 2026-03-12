@@ -33,6 +33,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override vault path from config",
     )
 
+    ingest_p = subparsers.add_parser("ingest", help="Convert PDF files to Markdown")
+    ingest_p.add_argument(
+        "--input", type=Path, required=True, metavar="PATH",
+        help="PDF file or directory of PDFs to convert",
+    )
+    ingest_p.add_argument(
+        "--output", type=Path, default=None, metavar="DIR",
+        help="Output directory for .md files (default: next to each PDF)",
+    )
+    ingest_p.add_argument(
+        "--describe-images", action="store_true",
+        help="Describe images via Claude vision API (requires ANTHROPIC_API_KEY)",
+    )
+
     serve_p = subparsers.add_parser("serve", help="Start the MCP server")
     serve_p.add_argument(
         "--transport", choices=["stdio", "sse"], default="stdio",
@@ -63,7 +77,18 @@ def main() -> None:
     from autoknowledge.config import load_config
     config = load_config(args.config)
 
-    if args.command == "index":
+    if args.command == "ingest":
+        import asyncio
+        from autoknowledge.ingestion.pipeline import run_ingest
+        stats = asyncio.run(run_ingest(
+            input_path=args.input,
+            output_dir=args.output,
+            describe_images=args.describe_images,
+            config=config,
+        ))
+        print(stats.summary())
+
+    elif args.command == "index":
         import asyncio
         from autoknowledge.indexer.pipeline import run_index
         stats = asyncio.run(run_index(config, full=args.full, vault_override=args.path))

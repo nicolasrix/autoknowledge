@@ -40,11 +40,17 @@ class RetrievalConfig(BaseModel, frozen=True):
     default_top_k: int = Field(default=10, ge=1, le=100)
 
 
+class IngestConfig(BaseModel, frozen=True):
+    anthropic_model: str = "claude-haiku-4-5-20251001"
+    max_image_dimension: int = Field(default=1024, gt=0)
+
+
 class Config(BaseModel, frozen=True):
     vault: VaultConfig = VaultConfig()
     embedding: EmbeddingConfig = EmbeddingConfig()
     index: IndexConfig = IndexConfig()
     retrieval: RetrievalConfig = RetrievalConfig()
+    ingest: IngestConfig = IngestConfig()
 
     @property
     def vault_path(self) -> Path:

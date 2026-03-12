@@ -58,3 +58,40 @@ class IndexStats:
             for e in self.errors:
                 lines.append(f"  - {e}")
         return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class PdfMetadata:
+    title: str
+    author: str
+    creation_date: str | None
+    page_count: int
+    source_path: Path
+
+
+@dataclass(frozen=True)
+class ImageRef:
+    page: int
+    index: int
+    image_bytes: bytes
+    mime_type: str
+    description: str | None = None
+
+
+@dataclass(frozen=True)
+class IngestStats:
+    total_pdfs: int
+    converted: int
+    skipped: int
+    errors: list[str] = field(default_factory=list)
+
+    def summary(self) -> str:
+        lines = [
+            f"Converted: {self.converted}/{self.total_pdfs} PDFs",
+            f"Skipped:   {self.skipped} already up-to-date",
+        ]
+        if self.errors:
+            lines.append(f"Errors:    {len(self.errors)}")
+            for e in self.errors:
+                lines.append(f"  - {e}")
+        return "\n".join(lines)
