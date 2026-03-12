@@ -93,14 +93,7 @@ class HybridRetriever:
         }
         missing_ids = [cid for cid, _ in ranked if cid not in semantic_data]
         if missing_ids:
-            # Fetch by ID from ChromaDB
-            extra = self._chroma._collection.get(  # noqa: SLF001
-                ids=missing_ids,
-                include=["metadatas", "documents"],
-            )
-            for cid, meta, doc in zip(
-                extra["ids"], extra["metadatas"], extra["documents"]
-            ):
+            for cid, meta, doc in self._chroma.get_by_ids(missing_ids):
                 semantic_data[cid] = (meta, doc)
 
         # 10. Build SearchResult objects

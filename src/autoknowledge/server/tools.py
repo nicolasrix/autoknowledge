@@ -88,11 +88,17 @@ async def reindex(
     """Trigger an incremental reindex and return a stats summary."""
     from autoknowledge.embedding.client import EmbeddingClient
     from autoknowledge.index.hash_tracker import HashTracker
-    from autoknowledge.indexer.pipeline import _run_pipeline
+    from autoknowledge.indexer.pipeline import _run_pipeline  # type: ignore[attr-defined]
 
     vault_override: Path | None = None
     if scope:
-        candidate = config.vault_path / scope
+        candidate = (config.vault_path / scope).resolve()
+        try:
+            candidate.relative_to(config.vault_path.resolve())
+        except ValueError:
+            raise ValueError(
+                f"Scope path '{scope}' is outside the vault directory."
+            )
         if not candidate.exists():
             raise ValueError(f"Scope path does not exist: {scope}")
         vault_override = candidate if candidate.is_dir() else candidate.parent

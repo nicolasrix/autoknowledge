@@ -137,6 +137,11 @@ class ChromaStore:
             )
         ]
 
+    def get_by_ids(self, ids: list[str]) -> list[tuple[str, dict[str, Any], str]]:
+        """Return (chunk_id, metadata, document_text) for the given IDs."""
+        results = self._collection.get(ids=ids, include=["metadatas", "documents"])
+        return list(zip(results["ids"], results["metadatas"], results["documents"]))
+
     def get_all_chunks_text(self) -> list[tuple[str, str]]:
         """Return (chunk_id, document_text) for all chunks (used to rebuild BM25)."""
         results = self._collection.get(include=["documents"])
