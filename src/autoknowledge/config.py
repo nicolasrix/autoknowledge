@@ -77,6 +77,8 @@ def _apply_env_overrides(raw: dict[str, Any]) -> dict[str, Any]:
         overrides.setdefault("embedding", {})["base_url"] = base_url
     if model := os.environ.get("AUTOKNOWLEDGE_EMBEDDING_MODEL"):
         overrides.setdefault("embedding", {})["model"] = model
+    if dimension := os.environ.get("AUTOKNOWLEDGE_EMBEDDING_DIMENSION"):
+        overrides.setdefault("embedding", {})["dimension"] = int(dimension)
 
     return _deep_merge(raw, overrides) if overrides else raw
 
