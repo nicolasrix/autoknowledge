@@ -24,9 +24,10 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      # VAULT_PATH: set in .env or override on the command line
-      # e.g.  VAULT_PATH=/home/user/obsidian-vault docker compose up
-      - ${VAULT_PATH:-./vault}:/vault:ro
+      # Vault mount — defined in the volumes section below.
+      # Use vault_smb when reading from a TrueNAS / Samba share,
+      # or vault_local when reading from a local path.
+      - ${VAULT_VOLUME:-vault_smb}:/vault:ro
       - autoknowledge_data:/data
     environment:
       AUTOKNOWLEDGE_VAULT_PATH: /vault
@@ -35,12 +36,32 @@ services:
     depends_on:
       embeddings:
         condition: service_healthy
-    # Default: run as MCP server (SSE transport for compose; use stdio for direct Claude Code)
+    # Default: SSE transport for the compose stack.
+    # Use stdio for direct Claude Code integration (see README).
     command: ["serve", "--transport", "sse", "--host", "0.0.0.0", "--port", "8080"]
     ports:
       - "8080:8080"
     restart: unless-stopped
 
 volumes:
+  # ── SMB/CIFS vault (TrueNAS, Samba) ─────────────────────────────────────────
+  # Requires cifs-utils on the Docker host (pacman -S cifs-utils / apt install cifs-utils).
+  # Set SMB_HOST, SMB_USER, SMB_PASSWORD, SMB_SHARE_PATH in .env.
+  vault_smb:
+    driver: local
+    driver_opts:
+      type: cifs
+      o: "vers=3.0,username=${SMB_USER:-guest},password=${SMB_PASSWORD:-},ro,iocharset=utf8,noperm"
+      device: "//${SMB_HOST:-truenas.local}/${SMB_SHARE_PATH:-Vault}"
+
+  # ── Local path vault ──────────────────────────────────────────────────────────
+  # Set VAULT_PATH in .env and switch VAULT_VOLUME=vault_local.
+  vault_local:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${VAULT_PATH:-/tmp/vault-placeholder}
+
   embeddings_models:
   autoknowledge_data:

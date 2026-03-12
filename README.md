@@ -30,6 +30,7 @@ Retrieval combines semantic similarity (ChromaDB) and keyword matching (BM25) us
 
 - Docker and Docker Compose (recommended), **or** Python 3.11+ with [uv](https://docs.astral.sh/uv/)
 - [OpenLLM](https://github.com/bentoml/OpenLLM) serving an embedding model (handled automatically by Docker Compose)
+- `cifs-utils` on the Docker host **if your vault is on an SMB/NAS share** (see [SMB vault](#smb-vault-truenas--samba))
 
 ---
 
@@ -44,11 +45,22 @@ cd autoknowledge
 cp .env.example .env
 ```
 
-Edit `.env` and set your vault path:
+Edit `.env` for your vault location. Choose one:
 
+**Local path:**
 ```env
+VAULT_VOLUME=vault_local
 VAULT_PATH=/home/yourname/obsidian-vault
 ```
+
+**SMB share (TrueNAS, Samba, NAS):**
+```env
+SMB_HOST=truenas.local
+SMB_USER=smbshare
+SMB_PASSWORD=yourpassword
+SMB_SHARE_PATH=Vault/Media/obsidian/truenas-obsidian-vault
+```
+The default `VAULT_VOLUME` is `vault_smb`, so no extra variable is needed for SMB.
 
 ### 2. Start the embedding service
 
@@ -467,6 +479,67 @@ Tests mirror the source tree. Integration tests live in `tests/integration/`. Al
 
 ---
 
+## SMB vault (TrueNAS / Samba)
+
+autoknowledge uses a Docker-managed CIFS volume to mount the SMB share directly inside the container. No host-level `/etc/fstab` entry or manual `mount` command is needed.
+
+### Prerequisites
+
+`cifs-utils` must be installed on the Docker host so the kernel CIFS driver is available:
+
+```bash
+# Arch / CachyOS / Manjaro
+sudo pacman -S cifs-utils
+
+# Debian / Ubuntu
+sudo apt install cifs-utils
+
+# Fedora / RHEL
+sudo dnf install cifs-utils
+```
+
+### `.env` configuration
+
+```env
+SMB_HOST=truenas.local
+SMB_USER=smbshare
+SMB_PASSWORD=yourpassword
+# Share name followed by the path within the share — no leading slashes
+SMB_SHARE_PATH=Vault/Media/obsidian/truenas-obsidian-vault
+```
+
+The `vault_smb` volume in `docker-compose.yml` translates these into a CIFS mount equivalent to:
+
+```bash
+mount -t cifs //truenas.local/Vault/Media/obsidian/truenas-obsidian-vault /vault \
+  -o vers=3.0,username=smbshare,password=yourpassword,ro,iocharset=utf8,noperm
+```
+
+### Verify the mount
+
+Before indexing, confirm Docker can mount the volume:
+
+```bash
+docker compose run --rm autoknowledge ls /vault
+```
+
+You should see your Obsidian vault files listed. If you see an error, check:
+- The TrueNAS hostname resolves: `ping truenas.local`
+- The share path is correct (share name first, subdirectory after, no `//` prefix)
+- Credentials are valid: try mounting manually with `mount -t cifs` first
+- SMB protocol version: if the server requires SMB 2.1 or 1.0, change `vers=3.0` in `docker-compose.yml` → `vault_smb` → `driver_opts.o`
+
+### Switching between SMB and local vault
+
+The active vault volume is controlled by `VAULT_VOLUME` in `.env`:
+
+| Vault location | `VAULT_VOLUME` | Extra variables needed |
+|---------------|----------------|------------------------|
+| SMB / NAS share | `vault_smb` (default) | `SMB_HOST`, `SMB_USER`, `SMB_PASSWORD`, `SMB_SHARE_PATH` |
+| Local host path | `vault_local` | `VAULT_PATH` |
+
+---
+
 ## Troubleshooting
 
 **Embedding service not reachable**
@@ -495,3 +568,32 @@ Run the indexer first: `autoknowledge index` (or `docker compose run --rm autokn
 - Verify the path in `~/.claude.json` is absolute and correct.
 - Check that Docker is running: `docker info`.
 - Test the server manually: `docker compose run --rm -T autoknowledge serve` — it should start without errors and wait on stdin.
+
+**SMB vault: `ls /vault` shows empty or permission denied**
+
+```
+docker compose run --rm autoknowledge ls /vault
+# shows nothing, or: ls: cannot access '/vault': Permission denied
+```
+
+1. Verify the share path — the `SMB_SHARE_PATH` must start with the TrueNAS **share name** (e.g., `Vault`), not the full filesystem path:
+   ```env
+   # Correct
+   SMB_SHARE_PATH=Vault/Media/obsidian/truenas-obsidian-vault
+   # Wrong
+   SMB_SHARE_PATH=/mnt/pool/Media/obsidian/truenas-obsidian-vault
+   ```
+2. Test credentials with a manual mount:
+   ```bash
+   sudo mount -t cifs //truenas.local/Vault/Media/obsidian/truenas-obsidian-vault /mnt/test \
+     -o vers=3.0,username=smbshare,password=yourpassword,ro
+   ```
+3. If the server requires a different SMB version, edit the `o:` line in `docker-compose.yml` under `vault_smb`:
+   ```yaml
+   o: "vers=2.1,username=..."   # or vers=1.0 for older servers
+   ```
+4. TrueNAS: ensure the SMB share has **Guest access disabled** and the user `smbshare` has read permission on the share in TrueNAS → Sharing → SMB → Edit → Access.
+
+**SMB vault: `docker compose up` fails with "can't mount"**
+
+Docker creates the CIFS volume on first use. If creation fails, Docker will report it at `compose up` or `compose run` time (not at `compose up -d embeddings`). Check `docker volume inspect autoknowledge_vault_smb` for error details and verify `cifs-utils` is installed: `pacman -Q cifs-utils`.
