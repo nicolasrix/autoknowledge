@@ -1,0 +1,46 @@
+services:
+  # ── Embedding service (OpenLLM) ──────────────────────────────────────────────
+  embeddings:
+    build:
+      context: .
+      dockerfile: services/embeddings/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist downloaded model weights across container restarts
+      - embeddings_models:/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:3000/readyz')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s   # embedding models take a while to initialise
+      retries: 5
+
+  # ── autoknowledge app ─────────────────────────────────────────────────────────
+  autoknowledge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # VAULT_PATH: set in .env or override on the command line
+      # e.g.  VAULT_PATH=/home/user/obsidian-vault docker compose up
+      - ${VAULT_PATH:-./vault}:/vault:ro
+      - autoknowledge_data:/data
+    environment:
+      AUTOKNOWLEDGE_VAULT_PATH: /vault
+      AUTOKNOWLEDGE_DATA_DIR: /data
+      AUTOKNOWLEDGE_EMBEDDING_BASE_URL: http://embeddings:3000
+    depends_on:
+      embeddings:
+        condition: service_healthy
+    # Default: run as MCP server (SSE transport for compose; use stdio for direct Claude Code)
+    command: ["serve", "--transport", "sse", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  embeddings_models:
+  autoknowledge_data:
