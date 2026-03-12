@@ -1,0 +1,23 @@
+# autoknowledge configuration
+# Copy to config.toml and adjust for your environment.
+# In Docker, vault.path and index.data_dir are set via environment variables
+# (AUTOKNOWLEDGE_VAULT_PATH, AUTOKNOWLEDGE_DATA_DIR) and this file is optional.
+
+[vault]
+path = "~/obsidian-vault"
+
+[embedding]
+base_url = "http://localhost:3000"   # OpenLLM endpoint
+model = "BAAI/bge-small-en-v1.5"
+dimension = 384
+batch_size = 64
+
+[index]
+data_dir = "~/.local/share/autoknowledge"
+chunk_min_tokens = 400
+chunk_max_tokens = 800
+chunk_overlap_tokens = 100
+
+[retrieval]
+alpha = 0.7          # weight for semantic score (1 - alpha goes to BM25)
+default_top_k = 10
