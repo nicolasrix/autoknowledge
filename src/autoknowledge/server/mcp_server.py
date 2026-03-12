@@ -12,7 +12,7 @@ from autoknowledge.embedding.client import EmbeddingClient
 from autoknowledge.index.bm25_store import BM25Store
 from autoknowledge.index.chroma_store import ChromaStore
 from autoknowledge.retrieval.hybrid import HybridRetriever
-from autoknowledge.server.tools import get_document, reindex, search_knowledge
+from autoknowledge.server.tools import get_document, ingest_pdfs, reindex, search_knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,7 @@ async def run_server(
                 "Local RAG server over an Obsidian vault. "
                 "Use search_knowledge to find relevant passages, "
                 "get_document to read a full file, "
+                "ingest_pdfs to convert PDF files to Markdown, "
                 "and reindex to refresh the index."
             ),
             host=host,
@@ -82,6 +83,24 @@ async def run_server(
         ) -> str:
             """Return the full Markdown content of a document from the vault."""
             return get_document(path, config.vault_path)
+
+        @mcp.tool()
+        async def ingest_pdfs_tool(
+            input_path: Annotated[str, "Path to a PDF file or directory of PDFs to convert"],
+            output_dir: Annotated[
+                str | None,
+                "Output directory for .md files. Defaults to same directory as each PDF.",
+            ] = None,
+            describe_images: Annotated[
+                bool,
+                "Describe images via Claude vision API (requires ANTHROPIC_API_KEY env var)",
+            ] = False,
+        ) -> str:
+            """Convert PDF files to Markdown and save them for indexing.
+
+            After conversion, call reindex to make the new notes searchable.
+            """
+            return await ingest_pdfs(input_path, output_dir, describe_images, config)
 
         @mcp.tool()
         async def reindex_tool(

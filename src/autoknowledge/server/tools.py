@@ -1,4 +1,4 @@
-"""MCP tool implementations: search_knowledge, get_document, reindex."""
+"""MCP tool implementations: search_knowledge, get_document, reindex, ingest_pdfs."""
 
 from __future__ import annotations
 
@@ -115,4 +115,27 @@ async def reindex(
     logger.info("Rebuilding BM25 after reindex …")
     bm25.build(chroma.get_all_chunks_text())
 
+    return stats.summary()
+
+
+async def ingest_pdfs(
+    input_path: str,
+    output_dir: str | None,
+    describe_images: bool,
+    config: Config,
+) -> str:
+    """Convert PDFs to Markdown and optionally trigger a reindex."""
+    from pathlib import Path as _Path
+
+    from autoknowledge.ingestion.pipeline import run_ingest
+
+    resolved_input = _Path(input_path).expanduser()
+    resolved_output = _Path(output_dir).expanduser() if output_dir else None
+
+    stats = await run_ingest(
+        input_path=resolved_input,
+        output_dir=resolved_output,
+        describe_images=describe_images,
+        config=config,
+    )
     return stats.summary()
