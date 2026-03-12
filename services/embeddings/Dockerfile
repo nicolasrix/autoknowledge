@@ -9,7 +9,7 @@ FROM ollama/ollama:rocm
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY start.sh /start.sh
+COPY services/embeddings/start.sh /start.sh
 RUN chmod +x /start.sh
 
 EXPOSE 11434
