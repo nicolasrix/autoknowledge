@@ -1,24 +1,35 @@
 services:
-  # ── Embedding service (OpenLLM) ──────────────────────────────────────────────
+  # ── Embedding service (Ollama + ROCm for AMD GPUs) ───────────────────────────
   embeddings:
     build:
       context: .
       dockerfile: services/embeddings/Dockerfile
-    # Port 3000 is only needed inside the Docker network (autoknowledge → embeddings).
-    # No host port mapping required. Uncomment the line below if you need to call
-    # the OpenLLM API directly from the host (change 3001 if that port is also taken).
-    # ports:
-    #   - "3001:3000"
+    environment:
+      # Change model here to switch embedding models (must also update config.toml).
+      EMBEDDING_MODEL: "${EMBEDDING_MODEL:-nomic-embed-text}"
+      OLLAMA_MODELS: /models
     volumes:
       # Persist downloaded model weights across container restarts
       - embeddings_models:/models
+    # AMD GPU access (ROCm). Remove these two lines for CPU-only or NVIDIA.
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    # No host port needed — autoknowledge reaches Ollama via the Docker network.
+    # Uncomment to also call the Ollama API from the host:
+    # ports:
+    #   - "11434:11434"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:3000/readyz')"]
+      # Passes only once Ollama is up AND the embedding model responds.
+      test: ["CMD-SHELL",
+             "curl -sf -X POST http://localhost:11434/v1/embeddings \
+              -H 'Content-Type: application/json' \
+              -d '{\"model\":\"'\"${EMBEDDING_MODEL:-nomic-embed-text}\"'\",\"input\":\"ping\"}' \
+              > /dev/null"]
       interval: 30s
-      timeout: 10s
-      start_period: 120s   # embedding models take a while to initialise
+      timeout: 15s
+      start_period: 300s   # first start downloads ~274 MB; subsequent starts are fast
       retries: 5
 
   # ── autoknowledge app ─────────────────────────────────────────────────────────
@@ -28,14 +39,14 @@ services:
       dockerfile: Dockerfile
     volumes:
       # Vault mount — defined in the volumes section below.
-      # Use vault_smb when reading from a TrueNAS / Samba share,
-      # or vault_local when reading from a local path.
+      # Use vault_smb for a TrueNAS/Samba share, vault_local for a local path.
       - ${VAULT_VOLUME:-vault_smb}:/vault:ro
       - autoknowledge_data:/data
     environment:
       AUTOKNOWLEDGE_VAULT_PATH: /vault
       AUTOKNOWLEDGE_DATA_DIR: /data
-      AUTOKNOWLEDGE_EMBEDDING_BASE_URL: http://embeddings:3000
+      AUTOKNOWLEDGE_EMBEDDING_BASE_URL: http://embeddings:11434
+      AUTOKNOWLEDGE_EMBEDDING_MODEL: "${EMBEDDING_MODEL:-nomic-embed-text}"
     depends_on:
       embeddings:
         condition: service_healthy

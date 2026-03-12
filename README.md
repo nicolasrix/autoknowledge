@@ -29,7 +29,7 @@ Retrieval combines semantic similarity (ChromaDB) and keyword matching (BM25) us
 ## Requirements
 
 - Docker and Docker Compose (recommended), **or** Python 3.11+ with [uv](https://docs.astral.sh/uv/)
-- [OpenLLM](https://github.com/bentoml/OpenLLM) serving an embedding model (handled automatically by Docker Compose)
+- [Ollama](https://ollama.com) serving an embedding model — handled automatically by Docker Compose using the `ollama/ollama:rocm` image for **AMD GPUs** (change the base image in `services/embeddings/Dockerfile` for NVIDIA or CPU-only)
 - `cifs-utils` on the Docker host **if your vault is on an SMB/NAS share** (see [SMB vault](#smb-vault-truenas--samba))
 
 ---
@@ -366,24 +366,51 @@ Files in `.obsidian/` and `.trash/` directories are automatically excluded.
 
 ## Changing the embedding model
 
-If you want to use a different model (e.g., `BAAI/bge-large-en-v1.5` for higher accuracy):
+Available Ollama embedding models:
 
-1. Update `config.toml` (or the `OPENLLM_MODEL` env var in `.env`):
+| Model | Dimension | Size | Notes |
+|-------|-----------|------|-------|
+| `nomic-embed-text` (default) | 768 | ~274 MB | Good quality, fast |
+| `mxbai-embed-large` | 1024 | ~670 MB | Best quality |
+| `all-minilm` | 384 | ~46 MB | Fastest, lowest memory |
+
+To switch:
+
+1. Set `EMBEDDING_MODEL` in `.env`:
+   ```env
+   EMBEDDING_MODEL=mxbai-embed-large
+   ```
+2. Update `config.toml` (or `AUTOKNOWLEDGE_EMBEDDING_MODEL` env var) to match:
    ```toml
    [embedding]
-   model = "BAAI/bge-large-en-v1.5"
+   model = "mxbai-embed-large"
    dimension = 1024
    ```
-2. Restart the embeddings container so OpenLLM loads the new model:
+3. Rebuild and restart the embeddings service (the new model is pulled automatically):
    ```bash
-   docker compose restart embeddings
+   docker compose up -d --build embeddings
    ```
-3. Force a full reindex to rebuild the vector store with the new dimensions:
+4. Force a full reindex — the vector store must be rebuilt when dimensions change:
    ```bash
    docker compose run --rm autoknowledge index --full
    ```
 
 > The server validates the stored model name and dimension on startup and refuses to start if they don't match the config, with a clear error message pointing to `--full`.
+
+### GPU configuration
+
+The embeddings service defaults to AMD ROCm. Edit `services/embeddings/Dockerfile` to change GPU backend:
+
+```dockerfile
+# AMD (default)
+FROM ollama/ollama:rocm
+
+# NVIDIA
+FROM ollama/ollama:latest
+
+# CPU-only (also remove the devices: section from docker-compose.yml)
+FROM ollama/ollama:latest
+```
 
 ---
 

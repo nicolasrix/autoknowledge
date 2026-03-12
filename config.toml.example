@@ -7,9 +7,9 @@
 path = "~/obsidian-vault"
 
 [embedding]
-base_url = "http://localhost:3000"   # OpenLLM endpoint
-model = "BAAI/bge-small-en-v1.5"
-dimension = 384
+base_url = "http://localhost:11434"   # Ollama endpoint
+model = "nomic-embed-text"            # must match the model pulled by Ollama
+dimension = 768                       # nomic-embed-text output dimension
 batch_size = 64
 
 [index]
