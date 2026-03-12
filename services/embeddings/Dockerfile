@@ -1,20 +1,24 @@
-# OpenLLM embedding service
-# Serves an embedding model via an OpenAI-compatible /v1/embeddings API on port 3000.
-FROM python:3.11-slim
+# Ollama embedding service with AMD ROCm GPU support.
+# Uses the official ollama/ollama:rocm image and pulls the embedding model on first start.
+#
+# For NVIDIA GPUs, change the base image to: ollama/ollama:latest
+# For CPU-only,                               ollama/ollama:latest  (no device mapping needed)
+FROM ollama/ollama:rocm
 
-RUN pip install --no-cache-dir "openllm[embeddings]"
+# Install curl for the startup health poll and healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
-EXPOSE 3000
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
-# Model is configurable via the EMBEDDING_MODEL build arg or OPENLLM_MODEL env var.
-# Default: BAAI/bge-small-en-v1.5 (384-dim, fast, high quality for its size)
-ENV OPENLLM_MODEL="BAAI/bge-small-en-v1.5"
+EXPOSE 11434
 
-# Models are cached at this path — mount a volume here to persist across restarts.
-ENV HF_HOME="/models"
-VOLUME ["/models"]
+# Model is configurable via EMBEDDING_MODEL env var.
+# Default: nomic-embed-text (768-dim, high quality, ~274 MB)
+ENV EMBEDDING_MODEL="nomic-embed-text"
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:3000/readyz')"
+# Model weights are stored here — mount a volume to persist across restarts.
+ENV OLLAMA_MODELS="/models"
 
-CMD ["sh", "-c", "openllm serve ${OPENLLM_MODEL} --port 3000"]
+ENTRYPOINT ["/start.sh"]
