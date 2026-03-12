@@ -4,8 +4,11 @@ services:
     build:
       context: .
       dockerfile: services/embeddings/Dockerfile
-    ports:
-      - "3000:3000"
+    # Port 3000 is only needed inside the Docker network (autoknowledge → embeddings).
+    # No host port mapping required. Uncomment the line below if you need to call
+    # the OpenLLM API directly from the host (change 3001 if that port is also taken).
+    # ports:
+    #   - "3001:3000"
     volumes:
       # Persist downloaded model weights across container restarts
       - embeddings_models:/models
