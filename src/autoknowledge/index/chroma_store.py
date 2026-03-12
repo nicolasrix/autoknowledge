@@ -20,13 +20,19 @@ _COLLECTION_NAME = "autoknowledge"
 class ChromaStore:
     """Wraps a persistent ChromaDB collection for chunk embedding storage."""
 
-    def __init__(self, data_dir: Path, embedding_config: EmbeddingConfig) -> None:
+    def __init__(self, data_dir: Path, embedding_config: EmbeddingConfig, full: bool = False) -> None:
         data_dir.mkdir(parents=True, exist_ok=True)
         self._cfg = embedding_config
         self._client = chromadb.PersistentClient(
             path=str(data_dir / "chroma"),
             settings=Settings(anonymized_telemetry=False),
         )
+        if full:
+            try:
+                self._client.delete_collection(_COLLECTION_NAME)
+                logger.info("ChromaDB collection dropped for full reindex")
+            except Exception:  # noqa: BLE001
+                pass
         self._collection = self._get_or_create_collection()
 
     # ── Collection lifecycle ──────────────────────────────────────────────────

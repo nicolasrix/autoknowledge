@@ -43,12 +43,10 @@ async def run_index(
                 "Start OpenLLM and retry, or check your config."
             )
 
-        chroma = ChromaStore(data_dir, config.embedding)
-        bm25 = BM25Store()
-
         if full:
             logger.info("Full reindex requested — dropping existing index")
-            chroma.drop_and_recreate()
+        chroma = ChromaStore(data_dir, config.embedding, full=full)
+        bm25 = BM25Store()
 
         with HashTracker(data_dir / "file_hashes.db") as tracker:
             stats = await _run_pipeline(config, vault_path, embedder, chroma, tracker)
