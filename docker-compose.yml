@@ -42,6 +42,9 @@ services:
       # Use vault_smb for a TrueNAS/Samba share, vault_local for a local path.
       - ${VAULT_VOLUME:-vault_smb}:/vault:ro
       - autoknowledge_data:/data
+      # Optional: mount a local PDF input directory for the ingest tool.
+      # Set PDF_INPUT_PATH in .env (e.g. PDF_INPUT_PATH=/home/you/Desktop/pdfs).
+      - ${PDF_INPUT_PATH:-pdf_input_placeholder}:/pdfs:ro
     environment:
       AUTOKNOWLEDGE_VAULT_PATH: /vault
       AUTOKNOWLEDGE_DATA_DIR: /data
@@ -80,3 +83,7 @@ volumes:
 
   embeddings_models:
   autoknowledge_data:
+
+  # ── PDF input placeholder ──────────────────────────────────────────────────
+  # Used when PDF_INPUT_PATH is not set. Safe no-op empty volume.
+  pdf_input_placeholder:
